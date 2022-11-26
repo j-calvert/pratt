@@ -3,6 +3,7 @@ from dataclasses import dataclass
 # Ref https://xlsxwriter.readthedocs.io/index.html
 import xlsxwriter
 from xlsxwriter.utility import xl_col_to_name
+import operator
 
 # Pandas is great, but I think a big powerful library we don't need yet.
 # Ref: https://medium.com/@AIWatson/how-to-read-csv-files-in-python-without-pandas-b693fc7ea3b7 and then
@@ -36,13 +37,12 @@ def validate(row: dict):
 class GL:
     id: str
     name: str
+    score: int = 0
 
 
 # Hardcoded GL mapping
-# I reordered it a bit (from what we got from the HTML source)
-# Ideas for making this easier: For each description, sort them
-# by descending length of longest common substring with the description.
-# Then the correct user input will almost always be "1"
+# We use a mutable score field to sort according to 
+# lenght of longest common substring with any given description
 gls: tuple[GL] = (
     GL(id="411601512", name="Printmaking"),
     GL(id="411601514", name="Color Processor"),
@@ -59,23 +59,77 @@ gls: tuple[GL] = (
 )
 
 
+# https://www.geeksforgeeks.org/longest-common-substring-dp-29/
+def LCSubStr(X, Y, m, n):
+
+    # Create a table to store lengths of
+    # longest common suffixes of substrings.
+    # Note that LCSuff[i][j] contains the
+    # length of longest common suffix of
+    # X[0...i-1] and Y[0...j-1]. The first
+    # row and first column entries have no
+    # logical meaning, they are used only
+    # for simplicity of the program.
+
+    # LCSuff is the table with zero
+    # value initially in each cell
+    LCSuff = [[0 for k in range(n + 1)] for l in range(m + 1)]
+
+    # To store the length of
+    # longest common substring
+    result = 0
+
+    # Following steps to build
+    # LCSuff[m+1][n+1] in bottom up fashion
+    for i in range(m + 1):
+        for j in range(n + 1):
+            if i == 0 or j == 0:
+                LCSuff[i][j] = 0
+            elif X[i - 1] == Y[j - 1]:
+                LCSuff[i][j] = LCSuff[i - 1][j - 1] + 1
+                result = max(result, LCSuff[i][j])
+            else:
+                LCSuff[i][j] = 0
+    print(f"lcs of {X} and {Y} is {result}")
+    return result
+
+
+# Sorts the GLs based on lenght of longest substring w/ description
+def sort_gls(description: str):
+    for gl in gls:
+        gl.score = LCSubStr(gl.name, description, len(gl.name), len(description))
+    print(gls)
+    sted = reversed(sorted(gls, key=operator.attrgetter("score")))
+    print(sted)
+    return sted
+
+
+# The descriptions have a bunch of boilerplate and additional info we don't care about
+def clean_up_description(desc: str):
+    return desc.split(",")[0].replace("Custom Amount - Reservation for ", "").replace(
+        " Studio Access PM", ""
+    )
+
+
 def getGL(description: str):
+    # Clean up the description, which itself looks like generated CSV
+    desc = clean_up_description(description)
+    gls_sorted = sort_gls(desc)
     print()
     print("GL choices:")
     i = 1
-    for gl in gls:
+    for gl in gls_sorted:
         print(f"[{i}] {gl.name}")
         i = i + 1
 
     print()
     print("Description:")
-    # Clean up the description, which itself looks like generated CSV
-    dparts = description.split(",")
-    print(dparts[0])
+    print(desc)
     print()
     while True:
         try:
-            user_input = input("Choose GL by number: ")
+            user_input = input("Choose GL by number [1]: ")
+            user_input = 1 if len(user_input) == 0 else user_input
             # Convert it into integer
             val = int(user_input)
             if val >= 1 and val <= len(gls):
@@ -116,15 +170,13 @@ def appendWorksheetRow(
             worksheet.write(row_count + 3, i, "Totals:")
         if key in summed_column_names:
             # Rewrite as a number so the formula calculation will work.
-            worksheet.write_number(row_count, i, float(str.replace(val, '$', '')), ssheet.currency_format)
+            worksheet.write_number(
+                row_count, i, float(str.replace(val, "$", "")), ssheet.currency_format
+            )
             worksheet.write(row_count + 1, i, " ")
             worksheet.write(row_count + 2, i, " ")
-            formula = (
-                f"SUM({xl_col_to_name(i)}2:{xl_col_to_name(i)}{row_count+1})"
-            )
-            worksheet.write_formula(
-                row_count + 3, i, formula, value="10"
-            )
+            formula = f"SUM({xl_col_to_name(i)}2:{xl_col_to_name(i)}{row_count+1})"
+            worksheet.write_formula(row_count + 3, i, formula, value="10")
         i += 1
     worksheet.write(row_count, i, gl)
     ssheet.row_count += 1
@@ -164,13 +216,13 @@ with open(filename, "r") as csvfile:
         print(f"------------------------------------------------------")
         validate(row)
         date = row["Date"]
-        gl:GL = getGL(row["Description"])
+        gl: GL = getGL(row["Description"])
         worksheet: xlsxwriter.Workbook.worksheet_class = updateWorksheet(
             date, row, gl.id
         )
         print(f"Thanks!  Added row number {ssheets[date].row_count} to {date}.xls")
 
-print();
+print()
 for name, ssheet in ssheets.items():
     print(f"Writing excel file {name}")
     ssheet.workbook.close()
