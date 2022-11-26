@@ -50,7 +50,7 @@ gls: tuple[GL] = (
     GL(id="411601523", name="Flat Glass"),
     GL(id="411601524", name="Flameworking"),
     GL(id="411601531", name="Wood"),
-    GL(id="411601534", name="Blacksmithing/Forgin"),
+    GL(id="411601534", name="Blacksmithing/Forging"),
     GL(id="411601535", name="Fabrication"),
     GL(id="411601540", name="Jewelry"),
     GL(id="411601522", name="Coldworking"),
@@ -122,7 +122,6 @@ def appendWorksheetRow(
             formula = (
                 f"SUM({xl_col_to_name(i)}2:{xl_col_to_name(i)}{row_count+1})"
             )
-            print(formula)
             worksheet.write_formula(
                 row_count + 3, i, formula, value="10"
             )
@@ -162,6 +161,7 @@ def updateWorksheet(date: str, row: dict, gl: GL):
 with open(filename, "r") as csvfile:
     reader_variable = csv.DictReader(csvfile, delimiter=",")
     for row in reader_variable:
+        print(f"------------------------------------------------------")
         validate(row)
         date = row["Date"]
         gl:GL = getGL(row["Description"])
@@ -169,7 +169,8 @@ with open(filename, "r") as csvfile:
             date, row, gl.id
         )
         print(f"Thanks!  Added row number {ssheets[date].row_count} to {date}.xls")
-        print(f"------------------------------------------------------")
 
-for ssheet in ssheets.values():
+print();
+for name, ssheet in ssheets.items():
+    print(f"Writing excel file {name}")
     ssheet.workbook.close()
