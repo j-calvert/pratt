@@ -29,7 +29,7 @@ summed_column_names: tuple[str] = "Net Total"
 def validate(row: dict):
     for c in shown_column_names:
         if c not in row:
-            raise f"Column {c} not found in columns from {filename}"
+            raise Exception(f"Column {c} not found in columns from {filename}")
 
 
 # GL "dataclass"
@@ -37,11 +37,12 @@ def validate(row: dict):
 class GL:
     id: str
     name: str
+    # Mutable score field used for sorting based on LCS w/ description
     score: int = 0
 
 
 # Hardcoded GL mapping
-# We use a mutable score field to sort according to 
+# We use a mutable score field to sort according to
 # lenght of longest common substring with any given description
 gls: tuple[GL] = (
     GL(id="411601512", name="Printmaking"),
@@ -52,7 +53,7 @@ gls: tuple[GL] = (
     GL(id="411601531", name="Wood"),
     GL(id="411601534", name="Blacksmithing/Forging"),
     GL(id="411601535", name="Fabrication"),
-    GL(id="411601540", name="Jewelry"),
+    GL(id="411601540", name="Jewelry and Metalsmithing"),
     GL(id="411601522", name="Coldworking"),
     GL(id="411601350100", name="2D"),
     GL(id="411601530", name="Sculpture"),
@@ -90,7 +91,7 @@ def LCSubStr(X, Y, m, n):
                 result = max(result, LCSuff[i][j])
             else:
                 LCSuff[i][j] = 0
-    print(f"lcs of {X} and {Y} is {result}")
+    # print(f"lcs of {X} and {Y} is {result}")
     return result
 
 
@@ -98,16 +99,16 @@ def LCSubStr(X, Y, m, n):
 def sort_gls(description: str):
     for gl in gls:
         gl.score = LCSubStr(gl.name, description, len(gl.name), len(description))
-    print(gls)
-    sted = reversed(sorted(gls, key=operator.attrgetter("score")))
-    print(sted)
-    return sted
+    return [e for e in reversed(sorted(gls, key=operator.attrgetter("score")))]
 
 
 # The descriptions have a bunch of boilerplate and additional info we don't care about
 def clean_up_description(desc: str):
-    return desc.split(",")[0].replace("Custom Amount - Reservation for ", "").replace(
-        " Studio Access PM", ""
+    return (
+        desc.split(",")[0]
+        .replace("Custom Amount - Reservation for ", "")
+        .replace(" Studio Access PM", "")
+        .replace(" Access PM", "")
     )
 
 
@@ -119,7 +120,7 @@ def getGL(description: str):
     print("GL choices:")
     i = 1
     for gl in gls_sorted:
-        print(f"[{i}] {gl.name}")
+        print(f"[{i}] {gl.name} ({gl.score})")
         i = i + 1
 
     print()
@@ -132,8 +133,8 @@ def getGL(description: str):
             user_input = 1 if len(user_input) == 0 else user_input
             # Convert it into integer
             val = int(user_input)
-            if val >= 1 and val <= len(gls):
-                return gls[val - 1]
+            if val >= 1 and val <= len(gls_sorted):
+                return gls_sorted[val - 1]
             else:
                 print(f"Value must be between 1 and {len(gls)}, inclusive")
         except ValueError:
@@ -141,14 +142,14 @@ def getGL(description: str):
 
 
 # So long as we really want a workook per day (rather than, say, a worksheet per day in a single workbook),
-# we keep track of just the list of all workbooks we've opened, plus a dictionary of worksheets per filename
-# All the spreadsheet related stuff
+# we need to have a workbook object per worksheet.  We also need to keep track of the row_count, and
+# just to be safe, each workbook/worksheet has its own currency_format object
 @dataclass
 class SSheet:
     workbook: xlsxwriter.Workbook
     worksheet: xlsxwriter.Workbook.worksheet_class
     row_count: int
-    currency_format: int
+    currency_format: any
 
 
 ssheets: dict[str, SSheet] = {}
@@ -169,14 +170,16 @@ def appendWorksheetRow(
             worksheet.write(row_count + 2, i, " ")
             worksheet.write(row_count + 3, i, "Totals:")
         if key in summed_column_names:
+            # worksheet.write(row_count, i, val)
             # Rewrite as a number so the formula calculation will work.
             worksheet.write_number(
                 row_count, i, float(str.replace(val, "$", "")), ssheet.currency_format
             )
             worksheet.write(row_count + 1, i, " ")
             worksheet.write(row_count + 2, i, " ")
+            # Will end up as 'SUM(V2:V6)'
             formula = f"SUM({xl_col_to_name(i)}2:{xl_col_to_name(i)}{row_count+1})"
-            worksheet.write_formula(row_count + 3, i, formula, value="10")
+            worksheet.write_formula(row_count + 3, i, formula)
         i += 1
     worksheet.write(row_count, i, gl)
     ssheet.row_count += 1
@@ -186,7 +189,7 @@ def updateWorksheet(date: str, row: dict, gl: GL):
     if date not in ssheets:
         workbook = xlsxwriter.Workbook(f"{date}.xlsx")
         worksheet = workbook.add_worksheet()
-        # Create columns
+        # Create column headers
         i = 0
         for key in row:
             worksheet.write(0, i, key)
@@ -198,8 +201,8 @@ def updateWorksheet(date: str, row: dict, gl: GL):
             )
             i += 1
         worksheet.write(0, i, "GL")
-        # A thing we need to do
-        # Add to global collection
+
+        # Add the stuff to our global collection of spreadsheets (ssheets)
         ssheets[date] = SSheet(
             workbook=workbook,
             worksheet=worksheet,
@@ -210,16 +213,16 @@ def updateWorksheet(date: str, row: dict, gl: GL):
     appendWorksheetRow(ssheets[date], row, gl)
 
 
+# Main portion of the program
 with open(filename, "r") as csvfile:
-    reader_variable = csv.DictReader(csvfile, delimiter=",")
-    for row in reader_variable:
+    reader = csv.DictReader(csvfile, delimiter=",")
+    for row in reader:
         print(f"------------------------------------------------------")
         validate(row)
         date = row["Date"]
         gl: GL = getGL(row["Description"])
-        worksheet: xlsxwriter.Workbook.worksheet_class = updateWorksheet(
-            date, row, gl.id
-        )
+        print(f"We picked gl = {gl.id}, {gl.name}")
+        updateWorksheet(date, row, gl.id)
         print(f"Thanks!  Added row number {ssheets[date].row_count} to {date}.xls")
 
 print()
