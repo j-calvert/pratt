@@ -1,7 +1,13 @@
 # Pratt arts helper script
 
 ## Requirements
-* Python 3
-* `pip3 install --user XlsxWriter`
+Ensure python is installed
+* `python` 
+Install required library
+* `pip install --user XlsxWriter`
 
+## Usage
+`python attachGL.py <csv_filename>`
+
+Paths to `attachGL.py` and `<csv_filename>` are relative to current working directory
 
