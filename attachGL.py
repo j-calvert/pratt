@@ -23,7 +23,7 @@ filename = sys.argv[1]
 # Our output will hide all the other than the ones in the following include-list.
 shown_column_names: tuple[str] = ("Date", "Card", "Fees", "Net Total", "Description")
 
-summed_column_names: tuple[str] = "Net Total"
+summed_column_names: tuple[str] = ("Card", "Fees", "Net Total")
 
 # A helper method to ensure that these columns are present
 def validate(row: dict):
@@ -179,9 +179,9 @@ def appendWorksheetRow(
             worksheet.write(row_count + 2, i, " ")
             # Will end up as 'SUM(V2:V6)'
             formula = f"SUM({xl_col_to_name(i)}2:{xl_col_to_name(i)}{row_count+1})"
-            worksheet.write_formula(row_count + 3, i, formula)
+            worksheet.write_formula(row_count + 3, i, formula, ssheet.currency_format)
         i += 1
-    worksheet.write(row_count, i, gl)
+    worksheet.write_number(row_count, i, int(gl))
     ssheet.row_count += 1
 
 
@@ -201,6 +201,7 @@ def updateWorksheet(date: str, row: dict, gl: GL):
             )
             i += 1
         worksheet.write(0, i, "GL")
+        worksheet.set_column(first_col=i, last_col=i, width=10)
 
         # Add the stuff to our global collection of spreadsheets (ssheets)
         ssheets[date] = SSheet(
