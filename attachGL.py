@@ -50,7 +50,7 @@ gls: tuple[GL] = (
     GL(id="411601521", name="Hot Glass"),
     GL(id="411601523", name="Flat Glass"),
     GL(id="411601524", name="Flameworking"),
-    GL(id="411601531", name="Wood"),
+    GL(id="411601531", name="Woodworking"),
     GL(id="411601534", name="Blacksmithing/Forging"),
     GL(id="411601535", name="Fabrication"),
     GL(id="411601540", name="Jewelry and Metalsmithing"),
