@@ -172,9 +172,8 @@ def appendWorksheetRow(
         if key in summed_column_names:
             # worksheet.write(row_count, i, val)
             # Rewrite as a number so the formula calculation will work.
-            worksheet.write_number(
-                row_count, i, float(str.replace(val, "$", "")), ssheet.currency_format
-            )
+            curr_num = float(str.replace(str.replace(val, "$", ""), ",", ""))
+            worksheet.write_number(row_count, i, curr_num, ssheet.currency_format)
             worksheet.write(row_count + 1, i, " ")
             worksheet.write(row_count + 2, i, " ")
             # Will end up as 'SUM(V2:V6)'
