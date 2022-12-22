@@ -117,7 +117,7 @@ def getGL(description: str):
     desc = clean_up_description(description)
     gls_sorted = sort_gls(desc)
     print()
-    print("De: {desc}")
+    print(f"De: {desc}")
     i = 1
     for gl in gls_sorted:
         print(f"[{i}] {gl.name} ({gl.score})")
